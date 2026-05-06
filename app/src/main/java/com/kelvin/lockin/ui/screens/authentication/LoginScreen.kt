@@ -5,9 +5,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
@@ -22,7 +25,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -41,7 +46,7 @@ import com.kelvin.lockin.ui.navigation.ROUTES
 import com.kelvin.lockin.ui.theme.OrbitronBold
 import com.kelvin.lockin.ui.theme.InterRegular
 
-// LockIn brand colours
+// LockIn brand colors
 private val BgColor       = Color(0xFF0F0F1A)
 private val PurplePrimary = Color(0xFF7C3AED)
 private val PurpleLight   = Color(0xFFA855F7)
@@ -58,6 +63,12 @@ fun LoginScreen(navController: NavHostController, viewModel: AuthViewModel = vie
 
     val authState by viewModel.authState.collectAsState()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+
+    // Validation
+    val isEmailValid = email.isNotBlank() && android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
+    val isPasswordValid = password.length >= 6
+    val isFormValid = isEmailValid && isPasswordValid
 
     LaunchedEffect(authState) {
         when (authState) {
@@ -117,6 +128,8 @@ fun LoginScreen(navController: NavHostController, viewModel: AuthViewModel = vie
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .imePadding()
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
@@ -151,7 +164,7 @@ fun LoginScreen(navController: NavHostController, viewModel: AuthViewModel = vie
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Welcome back. Stay locked in.",
+                text = "Welcome back. Stay locked in 😊.",
                 fontFamily = InterRegular,
                 fontSize = 13.sp,
                 color = TextMuted,
@@ -199,6 +212,24 @@ fun LoginScreen(navController: NavHostController, viewModel: AuthViewModel = vie
                                 tint = PurpleLight
                             )
                         },
+                        isError = email.isNotBlank() && !isEmailValid,
+                        supportingText = {
+                            if (email.isNotBlank() && !isEmailValid) {
+                                Text(
+                                    "Invalid email format",
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Email,
+                            imeAction = ImeAction.Next
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onNext = { focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down) }
+                        ),
+                        singleLine = true,
                         shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             unfocusedContainerColor = Color.White.copy(alpha = 0.04f),
@@ -207,7 +238,8 @@ fun LoginScreen(navController: NavHostController, viewModel: AuthViewModel = vie
                             focusedBorderColor     = PurpleLight,
                             cursorColor            = PurpleLight,
                             focusedTextColor       = TextPrimary,
-                            unfocusedTextColor     = TextPrimary
+                            unfocusedTextColor     = TextPrimary,
+                            errorBorderColor       = Color(0xFFCF6679)
                         )
                     )
 
@@ -245,7 +277,17 @@ fun LoginScreen(navController: NavHostController, viewModel: AuthViewModel = vie
                             VisualTransformation.None
                         else
                             PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Done
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                focusManager.clearFocus()
+                                if (isFormValid) viewModel.login(email, password)
+                            }
+                        ),
+                        singleLine = true,
                         shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             unfocusedContainerColor = Color.White.copy(alpha = 0.04f),
@@ -265,7 +307,8 @@ fun LoginScreen(navController: NavHostController, viewModel: AuthViewModel = vie
                         text = "Forgot Password?",
                         modifier = Modifier
                             .align(Alignment.End)
-                            .clickable { navController.navigate(ROUTES.FORGOT_PASSWORD) },
+                            .clickable { navController.navigate(ROUTES.FORGOT_PASSWORD) }
+                            .padding(vertical = 8.dp, horizontal = 4.dp),
                         fontFamily = InterRegular,
                         fontSize = 13.sp,
                         color = PurpleLight,
@@ -275,44 +318,56 @@ fun LoginScreen(navController: NavHostController, viewModel: AuthViewModel = vie
                     Spacer(modifier = Modifier.height(28.dp))
 
                     // Login button
-                    Box(
+                    Button(
+                        onClick = {
+                            focusManager.clearFocus()
+                            viewModel.login(email, password)
+                        },
+                        enabled = isFormValid && authState !is AuthState.Loading,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(54.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(
-                                if (authState is AuthState.Loading)
-                                    Brush.linearGradient(
-                                        listOf(
-                                            PurplePrimary.copy(alpha = 0.5f),
-                                            PurpleLight.copy(alpha = 0.5f)
-                                        )
-                                    )
-                                else
-                                    Brush.linearGradient(
-                                        listOf(PurplePrimary, PurpleLight)
-                                    )
-                            )
-                            .clickable(enabled = authState !is AuthState.Loading) {
-                                viewModel.login(email, password)
-                            },
-                        contentAlignment = Alignment.Center
+                            .height(54.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Transparent,
+                            disabledContainerColor = Color.Transparent
+                        ),
+                        contentPadding = PaddingValues(0.dp)
                     ) {
-                        if (authState is AuthState.Loading) {
-                            CircularProgressIndicator(
-                                color = Color.White,
-                                modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text(
-                                text = "Login",
-                                fontFamily = OrbitronBold,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                letterSpacing = 2.sp
-                            )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    if (authState is AuthState.Loading || !isFormValid)
+                                        Brush.linearGradient(
+                                            listOf(
+                                                PurplePrimary.copy(alpha = 0.4f),
+                                                PurpleLight.copy(alpha = 0.4f)
+                                            )
+                                        )
+                                    else
+                                        Brush.linearGradient(
+                                            listOf(PurplePrimary, PurpleLight)
+                                        )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (authState is AuthState.Loading) {
+                                CircularProgressIndicator(
+                                    color = Color.White,
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text(
+                                    text = "Login",
+                                    fontFamily = OrbitronBold,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    letterSpacing = 2.sp
+                                )
+                            }
                         }
                     }
                 }
@@ -340,6 +395,8 @@ fun LoginScreen(navController: NavHostController, viewModel: AuthViewModel = vie
                     color = PurpleLight
                 )
             }
+
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }

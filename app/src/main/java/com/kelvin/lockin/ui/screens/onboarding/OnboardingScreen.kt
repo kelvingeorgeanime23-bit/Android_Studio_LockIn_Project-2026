@@ -1,5 +1,6 @@
 package com.kelvin.lockin.ui.screens.onboarding
 
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -35,37 +36,51 @@ import com.kelvin.lockin.ui.theme.*
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
 
+data class OnboardingPage(
+    @DrawableRes val image: Int,
+    val title: String,
+    val description: String
+)
+
 @Composable
 fun OnboardingScreen(navController: NavController) {
-    val pagerState = rememberPagerState(pageCount = { 2 })
+
+    val pages = listOf(
+        OnboardingPage(
+            R.drawable.pexels_1st_onboarding_screen,
+            "Lock In.\nNo Excuses.",
+            "LockIn creates a distraction-free environment so you can study, sleep or work without your phone getting in the way."
+        ),
+        OnboardingPage(
+            R.drawable.pexels_2nd_onboarding_screen,
+            "You Control\nYour Focus.",
+            "Choose which apps stay open during your session. Block everything else. Stay locked in until the time is up."
+        )
+    )
+
+    val pagerState = rememberPagerState(pageCount = { pages.size })
     val scope = rememberCoroutineScope()
-
-    val images = listOf(
-        R.drawable.pexels_1st_onboarding_screen,
-        R.drawable.pexels_2nd_onboarding_screen
-    )
-
-    val titles = listOf(
-        "Lock In.\nNo Excuses.",
-        "You Control\nYour Focus."
-    )
-
-    val descriptions = listOf(
-        "LockIn creates a distraction-free environment so you can study, sleep or work without your phone getting in the way.",
-        "Choose which apps stay open during your session. Block everything else. Stay locked in until the time is up."
-    )
 
     Box(modifier = Modifier.fillMaxSize()) {
 
-        // BACKGROUND IMAGE WITH DARK OVERLAY
-        Image(
-            painter = painterResource(id = images[pagerState.currentPage]),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer { alpha = 0.60f }
-        )
+        // BACKGROUND IMAGE WITH CROSSFADE
+        AnimatedContent(
+            targetState = pagerState.currentPage,
+            transitionSpec = {
+                fadeIn(animationSpec = tween(600)) togetherWith
+                        fadeOut(animationSpec = tween(600))
+            },
+            label = "bgTransition"
+        ) { currentPage ->
+            Image(
+                painter = painterResource(id = pages[currentPage].image),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = 0.60f }
+            )
+        }
 
         // DARK GRADIENT OVERLAY
         Box(
@@ -109,28 +124,27 @@ fun OnboardingScreen(navController: NavController) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
-            // SKIP BUTTON
+            // SKIP BUTTON (always reserves space)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 16.dp),
                 horizontalArrangement = Arrangement.End
             ) {
-                if (pagerState.currentPage == 0) {
-                    TextButton(
-                        onClick = {
-                            navController.navigate(ROUTES.LOGIN) {
-                                popUpTo(ROUTES.ONBOARDING) { inclusive = true }
-                            }
+                TextButton(
+                    onClick = {
+                        navController.navigate(ROUTES.LOGIN) {
+                            popUpTo(ROUTES.ONBOARDING) { inclusive = true }
                         }
-                    ) {
-                        Text(
-                            text = "Skip",
-                            color = TextGrey,
-                            fontFamily = InterFont,
-                            fontSize = 14.sp
-                        )
-                    }
+                    },
+                    enabled = pagerState.currentPage == 0
+                ) {
+                    Text(
+                        text = "Skip",
+                        color = if (pagerState.currentPage == 0) TextGrey else Color.Transparent,
+                        fontFamily = InterFont,
+                        fontSize = 14.sp
+                    )
                 }
             }
 
@@ -168,7 +182,7 @@ fun OnboardingScreen(navController: NavController) {
                         Column {
                             // PAGE NUMBER
                             Text(
-                                text = "0${page + 1}",
+                                text = (page + 1).toString().padStart(2, '0'),
                                 fontFamily = OrbitronFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp,
@@ -180,7 +194,7 @@ fun OnboardingScreen(navController: NavController) {
 
                             // TITLE
                             Text(
-                                text = titles[page],
+                                text = pages[page].title,
                                 fontFamily = OrbitronFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 28.sp,
@@ -207,7 +221,7 @@ fun OnboardingScreen(navController: NavController) {
 
                             // DESCRIPTION
                             Text(
-                                text = descriptions[page],
+                                text = pages[page].description,
                                 fontFamily = InterFont,
                                 fontWeight = FontWeight.Normal,
                                 fontSize = 15.sp,
@@ -227,7 +241,7 @@ fun OnboardingScreen(navController: NavController) {
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                repeat(2) { iteration ->
+                repeat(pages.size) { iteration ->
                     val isSelected = pagerState.currentPage == iteration
                     val color = if (isSelected) PurpleLight else TextMuted
                     val width by animateDpAsState(
@@ -257,8 +271,8 @@ fun OnboardingScreen(navController: NavController) {
             ) { currentPage ->
                 Button(
                     onClick = {
-                        if (currentPage == 0) {
-                            scope.launch { pagerState.animateScrollToPage(1) }
+                        if (currentPage < pages.size - 1) {
+                            scope.launch { pagerState.animateScrollToPage(currentPage + 1) }
                         } else {
                             navController.navigate(ROUTES.LOGIN) {
                                 popUpTo(ROUTES.ONBOARDING) { inclusive = true }
@@ -271,10 +285,11 @@ fun OnboardingScreen(navController: NavController) {
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = PurplePrimary
-                    )
+                    ),
+                    contentPadding = PaddingValues(vertical = 16.dp)
                 ) {
                     Text(
-                        text = if (currentPage == 0) "Next" else "Get Started",
+                        text = if (currentPage < pages.size - 1) "Next" else "Get Started",
                         fontFamily = InterFont,
                         fontWeight = FontWeight.Medium,
                         fontSize = 16.sp,

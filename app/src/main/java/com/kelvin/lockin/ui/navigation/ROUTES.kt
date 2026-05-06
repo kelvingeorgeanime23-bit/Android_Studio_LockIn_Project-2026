@@ -11,4 +11,5 @@ object ROUTES {
     const val APP_SELECTION = "app_selection"
     const val FOCUS_MODE = "focus_mode"
     const val WAKE_UP = "wake_up"
+    const val SETTINGS = "settings"
 }

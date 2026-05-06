@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.animateLottieCompositionAsState
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.kelvin.lockin.R
@@ -50,14 +51,27 @@ fun SplashScreen(navController: NavController) {
     val composition by rememberLottieComposition(
         LottieCompositionSpec.RawRes(R.raw.lockin_splash_animation)
     )
-    val progress by animateLottieCompositionAsState(composition)
+    val progress by animateLottieCompositionAsState(
+        composition = composition,
+        iterations = LottieConstants.IterateForever
+    )
+
+    // NAVIGATION STATE
+    var canNavigate by remember { mutableStateOf(false) }
 
     // LAUNCH EFFECT: fade in then navigate
     LaunchedEffect(Unit) {
         visible = true
         delay(3000L)
-        navController.navigate(ROUTES.ONBOARDING) {
-            popUpTo(ROUTES.SPLASH) { inclusive = true }
+        canNavigate = true
+    }
+
+    // NAVIGATE WHEN READY (composition loaded + minimum time passed)
+    LaunchedEffect(canNavigate, composition) {
+        if (canNavigate && composition != null) {
+            navController.navigate(ROUTES.ONBOARDING) {
+                popUpTo(ROUTES.SPLASH) { inclusive = true }
+            }
         }
     }
 
@@ -72,11 +86,13 @@ fun SplashScreen(navController: NavController) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // LOTTIE ANIMATION
-            LottieAnimation(
-                composition = composition,
-                progress = { progress },
-                modifier = Modifier.size(200.dp)
-            )
+            if (composition != null) {
+                LottieAnimation(
+                    composition = composition,
+                    progress = { progress },
+                    modifier = Modifier.size(200.dp)
+                )
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -96,6 +112,7 @@ fun SplashScreen(navController: NavController) {
             Text(
                 text = "Focus. Discipline. Control.",
                 style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
                 modifier = Modifier.alpha(alpha)
             )
         }

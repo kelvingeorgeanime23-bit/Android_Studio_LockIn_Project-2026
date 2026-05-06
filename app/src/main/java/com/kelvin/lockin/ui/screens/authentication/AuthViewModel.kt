@@ -2,6 +2,7 @@ package com.kelvin.lockin.ui.screens.authentication
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kelvin.lockin.data.repository.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,6 +16,8 @@ sealed class AuthState {
 }
 
 class AuthViewModel : ViewModel() {
+    private val repository = AuthRepository()
+
     private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
@@ -23,13 +26,46 @@ class AuthViewModel : ViewModel() {
             _authState.value = AuthState.Error("Please fill in all fields")
             return
         }
-
         viewModelScope.launch {
             _authState.value = AuthState.Loading
-            // TODO: Implement actual login logic with Supabase or other provider
-            // For now, simulate a delay and success
-            kotlinx.coroutines.delay(1500)
-            _authState.value = AuthState.Success
+            val result = repository.login(email, password)
+            _authState.value = if (result.isSuccess) {
+                AuthState.Success
+            } else {
+                AuthState.Error(result.exceptionOrNull()?.message ?: "Login failed")
+            }
+        }
+    }
+
+    fun signUp(fullName: String, email: String, phoneNumber: String, password: String) {
+        if (email.isEmpty() || password.isEmpty() || fullName.isEmpty()) {
+            _authState.value = AuthState.Error("Please fill in all fields")
+            return
+        }
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            val result = repository.register(email, password, fullName, phoneNumber)
+            _authState.value = if (result.isSuccess) {
+                AuthState.Success
+            } else {
+                AuthState.Error(result.exceptionOrNull()?.message ?: "Sign up failed")
+            }
+        }
+    }
+
+    fun forgotPassword(email: String) {
+        if (email.isEmpty()) {
+            _authState.value = AuthState.Error("Please enter your email")
+            return
+        }
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            val result = repository.forgotPassword(email)
+            _authState.value = if (result.isSuccess) {
+                AuthState.Success
+            } else {
+                AuthState.Error(result.exceptionOrNull()?.message ?: "Failed to send reset link")
+            }
         }
     }
 
