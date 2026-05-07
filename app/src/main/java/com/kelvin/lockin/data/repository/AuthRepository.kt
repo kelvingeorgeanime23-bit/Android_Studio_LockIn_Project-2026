@@ -45,4 +45,12 @@ class AuthRepository {
     }
 
     fun getCurrentUser() = authService.getCurrentUser()
+
+    suspend fun getProfileName(): String? {
+        return try {
+            authService.getProfileName()
+        } catch (e: Exception) {
+            null
+        }
+    }
 }

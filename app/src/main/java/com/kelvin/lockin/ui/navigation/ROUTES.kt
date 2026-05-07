@@ -12,4 +12,6 @@ object ROUTES {
     const val FOCUS_MODE = "focus_mode"
     const val WAKE_UP = "wake_up"
     const val SETTINGS = "settings"
+    const val STATS = "stats"
+    const val HISTORY = "history"
 }

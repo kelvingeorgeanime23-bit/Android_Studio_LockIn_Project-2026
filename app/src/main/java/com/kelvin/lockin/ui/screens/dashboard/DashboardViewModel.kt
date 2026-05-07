@@ -33,18 +33,27 @@ class DashboardViewModel : ViewModel() {
 
     private fun loadUserData() {
         viewModelScope.launch {
-            val user = authRepository.getCurrentUser()
-            // Get full_name from profiles table, fallback to email first part
-            _userName.value = user?.userMetadata?.get("full_name")?.toString()
-                ?.split(" ")?.firstOrNull()
-                ?.replaceFirstChar { it.uppercase() }
-                ?: user?.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() }
-                        ?: "Warrior"
+            try {
+                // Fetch full_name from profiles table, extract first word
+                val fullName = authRepository.getProfileName()
+
+                _userName.value = fullName
+                    ?.trim()
+                    ?.split(" ")
+                    ?.firstOrNull()
+                    ?.replaceFirstChar { it.uppercase() }
+                    ?: authRepository.getCurrentUser()?.email
+                        ?.substringBefore("@")
+                        ?.replaceFirstChar { it.uppercase() }
+                            ?: "Warrior"
+
+            } catch (e: Exception) {
+                _userName.value = "Warrior"
+            }
         }
     }
 
     private fun loadStats() {
-        // TODO: Load from local database or Supabase
         _weeklyStats.value = WeeklyStats(
             weeklyFocusTime = "12h 30m",
             sessionsCompleted = 8,
@@ -55,7 +64,6 @@ class DashboardViewModel : ViewModel() {
     fun endFocusSession() {
         viewModelScope.launch {
             _isLockedIn.value = false
-            // TODO: Save session to database, update stats
         }
     }
 }

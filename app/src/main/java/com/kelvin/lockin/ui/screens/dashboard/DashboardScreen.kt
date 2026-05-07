@@ -1,5 +1,6 @@
 package com.kelvin.lockin.ui.screens.dashboard
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,7 +10,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,6 +23,9 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -49,6 +56,7 @@ fun DashboardScreen(
     val userName by viewModel.userName.collectAsState()
     val isLockedIn by viewModel.isLockedIn.collectAsState()
     val weeklyStats by viewModel.weeklyStats.collectAsState()
+    val context = LocalContext.current
 
     Box(
         modifier = Modifier
@@ -92,7 +100,6 @@ fun DashboardScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // User greeting with first name
                 Column {
                     Text(
                         text = "Welcome back,",
@@ -109,9 +116,8 @@ fun DashboardScreen(
                     )
                 }
 
-                // Settings icon
                 IconButton(
-                    onClick = { /* TODO: Open settings */ }
+                    onClick = { Toast.makeText(context, "Coming soon", Toast.LENGTH_SHORT).show() }
                 ) {
                     Icon(
                         imageVector = Icons.Default.Settings,
@@ -131,9 +137,11 @@ fun DashboardScreen(
                     .clip(RoundedCornerShape(24.dp))
                     .background(
                         if (isLockedIn)
-                            Brush.linearGradient(listOf(PurpleDark.copy(alpha = 0.6f), PurplePrimary.copy(alpha = 0.4f)))
+                            Brush.linearGradient(
+                                listOf(PurpleDark.copy(alpha = 0.6f), PurplePrimary.copy(alpha = 0.4f))
+                            )
                         else
-                            Brush.linearGradient(listOf(GlassWhite, GlassWhite))
+                            SolidColor(GlassWhite)
                     )
                     .border(
                         width = 1.dp,
@@ -151,7 +159,6 @@ fun DashboardScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    // Status indicator
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
@@ -175,11 +182,10 @@ fun DashboardScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = if (isLockedIn) {
+                        text = if (isLockedIn)
                             "Stay focused. You're doing great."
-                        } else {
-                            "Ready to lock in? Start a session."
-                        },
+                        else
+                            "Ready to lock in? Start a session.",
                         fontFamily = InterRegular,
                         fontSize = 14.sp,
                         color = TextMuted,
@@ -205,23 +211,18 @@ fun DashboardScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Weekly Focus Time
                 StatCard(
                     modifier = Modifier.weight(1f),
                     value = weeklyStats.weeklyFocusTime,
                     label = "This Week",
                     color = PurpleLight
                 )
-
-                // Sessions Completed
                 StatCard(
                     modifier = Modifier.weight(1f),
                     value = weeklyStats.sessionsCompleted.toString(),
                     label = "Sessions",
                     color = TextGreen
                 )
-
-                // Current Streak
                 StatCard(
                     modifier = Modifier.weight(1f),
                     value = "${weeklyStats.currentStreak}d",
@@ -232,73 +233,54 @@ fun DashboardScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // ── Start Focus Session Button ────────────────────────────────────
-            Button(
-                onClick = {
-                    if (isLockedIn) {
-                        viewModel.endFocusSession()
-                    } else {
-                        navController.navigate(ROUTES.FOCUS_MODE)
-                    }
-                },
+            // ── Start / End Focus Session Button ──────────────────────────────
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Transparent,
-                    disabledContainerColor = Color.Transparent
-                ),
-                contentPadding = PaddingValues(0.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            if (isLockedIn)
-                                Brush.linearGradient(
-                                    listOf(
-                                        Color(0xFFDC2626).copy(alpha = 0.8f),
-                                        Color(0xFFEF4444).copy(alpha = 0.6f)
-                                    )
-                                )
-                            else
-                                Brush.linearGradient(
-                                    listOf(PurplePrimary, PurpleLight)
-                                )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = if (isLockedIn) "End Session" else "Start Focus Session",
-                        fontFamily = OrbitronBold,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        letterSpacing = 2.sp
+                    .height(56.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(
+                        if (isLockedIn)
+                            Brush.linearGradient(
+                                listOf(Color(0xFFDC2626), Color(0xFFEF4444))
+                            )
+                        else
+                            Brush.linearGradient(
+                                listOf(PurplePrimary, PurpleLight)
+                            )
                     )
-                }
+                    .clickable {
+                        if (isLockedIn) viewModel.endFocusSession()
+                        else navController.navigate(ROUTES.FOCUS_MODE)
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (isLockedIn) "End Session" else "Start Focus Session",
+                    fontFamily = OrbitronBold,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    letterSpacing = 2.sp
+                )
             }
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // ── Action Buttons Grid ───────────────────────────────────────────
+            // ── Action Buttons Row 1 ──────────────────────────────────────────
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Schedule Button
                 ActionButton(
                     modifier = Modifier.weight(1f),
-                    icon = "📅",
+                    icon = Icons.Default.CalendarToday,
                     label = "Schedule",
                     onClick = { navController.navigate(ROUTES.SCHEDULE) }
                 )
-
-                // App Selection Button
                 ActionButton(
                     modifier = Modifier.weight(1f),
-                    icon = "🎯",
+                    icon = Icons.Default.Apps,
                     label = "Apps",
                     onClick = { navController.navigate(ROUTES.APP_SELECTION) }
                 )
@@ -306,25 +288,26 @@ fun DashboardScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // ── Second Row of Action Buttons ──────────────────────────────────
+            // ── Action Buttons Row 2 ──────────────────────────────────────────
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Stats Button
                 ActionButton(
                     modifier = Modifier.weight(1f),
-                    icon = "📊",
+                    icon = Icons.Default.Dashboard,
                     label = "Stats",
-                    onClick = { /* TODO: Navigate to stats */ }
+                    onClick = {
+                        Toast.makeText(context, "Coming soon", Toast.LENGTH_SHORT).show()
+                    }
                 )
-
-                // History Button
                 ActionButton(
                     modifier = Modifier.weight(1f),
-                    icon = "📜",
+                    icon = Icons.Default.Schedule,
                     label = "History",
-                    onClick = { /* TODO: Navigate to history */ }
+                    onClick = {
+                        Toast.makeText(context, "Coming soon", Toast.LENGTH_SHORT).show()
+                    }
                 )
             }
 
@@ -333,7 +316,7 @@ fun DashboardScreen(
     }
 }
 
-// ── Stat Card Component ──────────────────────────────────────────────────────
+// ── Stat Card ────────────────────────────────────────────────────────────────
 @Composable
 private fun StatCard(
     modifier: Modifier = Modifier,
@@ -355,9 +338,7 @@ private fun StatCard(
             .padding(16.dp),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = value,
                 fontFamily = OrbitronBold,
@@ -376,11 +357,11 @@ private fun StatCard(
     }
 }
 
-// ── Action Button Component ──────────────────────────────────────────────────
+// ── Action Button ────────────────────────────────────────────────────────────
 @Composable
 private fun ActionButton(
     modifier: Modifier = Modifier,
-    icon: String,
+    icon: ImageVector,
     label: String,
     onClick: () -> Unit
 ) {
@@ -399,12 +380,12 @@ private fun ActionButton(
             .padding(vertical = 24.dp),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = icon,
-                fontSize = 32.sp
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = PurpleLight,
+                modifier = Modifier.size(28.dp)
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
