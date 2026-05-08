@@ -7,47 +7,48 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "blocked_apps")
 
 class BlockedAppsRepository(private val context: Context) {
 
-    private val BLOCKED_APPS_KEY = stringSetPreferencesKey("blocked_packages")
+    // Store as "AppName|PackageName" pairs in ONE set
+    private val BLOCKED_APPS_KEY = stringSetPreferencesKey("blocked_apps")
 
-    // Read blocked apps as a Flow (auto-updates when data changes)
-    val blockedPackages: Flow<Set<String>> = context.dataStore.data.map { prefs ->
+    // Raw data: "Instagram|com.instagram.android"
+    val blockedAppsRaw: Flow<Set<String>> = context.dataStore.data.map { prefs ->
         prefs[BLOCKED_APPS_KEY] ?: emptySet()
     }
 
-    // Check if a specific app is blocked
-    suspend fun isBlocked(packageName: String): Boolean {
-        return context.dataStore.data.map { prefs ->
-            prefs[BLOCKED_APPS_KEY]?.contains(packageName) ?: false
-        }.first()
+    // Get app names for display
+    val blockedAppNames: Flow<List<String>> = blockedAppsRaw.map { set ->
+        set.map { it.substringBefore("|") }
     }
 
-    // Add app to blocked list
-    suspend fun blockApp(packageName: String) {
+    // Get package names for accessibility service
+    val blockedPackages: Flow<Set<String>> = blockedAppsRaw.map { set ->
+        set.map { it.substringAfter("|") }.toSet()
+    }
+
+    suspend fun blockApp(appName: String, packageName: String) {
         context.dataStore.edit { prefs ->
             val current = prefs[BLOCKED_APPS_KEY] ?: emptySet()
-            prefs[BLOCKED_APPS_KEY] = current + packageName
+            prefs[BLOCKED_APPS_KEY] = current + "$appName|$packageName"
         }
     }
 
-    // Remove app from blocked list
     suspend fun unblockApp(packageName: String) {
         context.dataStore.edit { prefs ->
             val current = prefs[BLOCKED_APPS_KEY] ?: emptySet()
-            prefs[BLOCKED_APPS_KEY] = current - packageName
+            // Remove entry that ends with "|packageName"
+            prefs[BLOCKED_APPS_KEY] = current.filter { !it.endsWith("|$packageName") }.toSet()
         }
     }
 
-    // Replace entire blocked list
-    suspend fun setBlockedApps(packages: Set<String>) {
+    suspend fun clearAll() {
         context.dataStore.edit { prefs ->
-            prefs[BLOCKED_APPS_KEY] = packages
+            prefs[BLOCKED_APPS_KEY] = emptySet()
         }
     }
 }

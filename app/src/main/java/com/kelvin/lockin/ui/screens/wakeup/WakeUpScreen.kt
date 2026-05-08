@@ -1,16 +1,16 @@
 package com.kelvin.lockin.ui.screens.wakeup
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -22,144 +22,136 @@ import androidx.navigation.NavHostController
 import com.kelvin.lockin.ui.navigation.ROUTES
 import com.kelvin.lockin.ui.theme.InterRegular
 import com.kelvin.lockin.ui.theme.OrbitronBold
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 
 private val BgColor       = Color(0xFF0F0F1A)
 private val PurplePrimary = Color(0xFF7C3AED)
 private val PurpleLight   = Color(0xFFA855F7)
 private val GlassWhite    = Color.White.copy(alpha = 0.07f)
-private val GlassBorder   = Color.White.copy(alpha = 0.15f)
 private val TextPrimary   = Color(0xFFF1F0FF)
 private val TextMuted     = Color(0xFF9B8EC4)
 private val TextGreen     = Color(0xFF34D399)
 
 @Composable
 fun WakeUpScreen(
-    navController: NavHostController
+    navController: NavHostController,
+    sessionStartTime: String? = null,
+    sessionEndTime: String? = null,
+    sessionDuration: String? = null
 ) {
+    val currentTime = remember { LocalTime.now() }
+    val timeFormatter = DateTimeFormatter.ofPattern("hh:mm a")
+    val greeting = when (currentTime.hour) {
+        in 5..11 -> "Good Morning"
+        in 12..16 -> "Good Afternoon"
+        in 17..21 -> "Good Evening"
+        else -> "Good Night"
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(BgColor)
+            .background(BgColor),
+        contentAlignment = Alignment.Center
     ) {
-
-        // ── Glow blob top ─────────────────────────────────────────────────────
+        // Background glow
         Box(
             modifier = Modifier
-                .size(350.dp)
-                .align(Alignment.TopCenter)
+                .size(400.dp)
                 .offset(y = (-100).dp)
-                .blur(140.dp)
-                .background(PurplePrimary.copy(alpha = 0.35f), CircleShape)
-        )
-
-        // ── Glow blob bottom ──────────────────────────────────────────────────
-        Box(
-            modifier = Modifier
-                .size(250.dp)
-                .align(Alignment.BottomCenter)
-                .offset(y = 80.dp)
-                .blur(120.dp)
-                .background(PurpleLight.copy(alpha = 0.2f), CircleShape)
+                .background(
+                    Brush.radialGradient(
+                        listOf(PurplePrimary.copy(alpha = 0.2f), Color.Transparent)
+                    ),
+                    CircleShape
+                )
         )
 
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            modifier = Modifier.padding(24.dp)
         ) {
-
-            // ── Trophy Icon ───────────────────────────────────────────────────
-            Box(
-                modifier = Modifier
-                    .size(120.dp)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.radialGradient(
-                            listOf(
-                                PurplePrimary.copy(alpha = 0.5f),
-                                PurpleLight.copy(alpha = 0.2f)
-                            )
-                        )
-                    )
-                    .border(
-                        width = 1.dp,
-                        brush = Brush.linearGradient(
-                            listOf(PurpleLight.copy(alpha = 0.5f), GlassBorder)
-                        ),
-                        shape = CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "🏆",
-                    fontSize = 52.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // ── Headline ──────────────────────────────────────────────────────
+            // Greeting
             Text(
-                text = "SESSION COMPLETE",
-                fontFamily = OrbitronBold,
-                fontSize = 22.sp,
-                color = TextPrimary,
-                letterSpacing = 2.sp,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "You locked in and got it done.",
+                text = greeting,
                 fontFamily = InterRegular,
-                fontSize = 14.sp,
-                color = TextMuted,
-                textAlign = TextAlign.Center
+                fontSize = 18.sp,
+                color = TextMuted
             )
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // ── Stats Card ────────────────────────────────────────────────────
+            // Time
+            Text(
+                text = currentTime.format(timeFormatter),
+                fontFamily = OrbitronBold,
+                fontSize = 64.sp,
+                color = TextPrimary,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Session complete message with actual times
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(GlassWhite)
-                    .border(
-                        width = 1.dp,
-                        brush = Brush.linearGradient(
-                            listOf(GlassBorder, Color.White.copy(alpha = 0.03f))
-                        ),
-                        shape = RoundedCornerShape(24.dp)
-                    )
-                    .padding(24.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(PurplePrimary.copy(alpha = 0.15f))
+                    .padding(horizontal = 32.dp, vertical = 20.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    WakeUpStat(
-                        value = "1",
-                        label = "Session"
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Session Complete",
+                        fontFamily = OrbitronBold,
+                        fontSize = 20.sp,
+                        color = TextGreen
                     )
-                    WakeUpStat(
-                        value = "✓",
-                        label = "Complete",
-                        valueColor = TextGreen
-                    )
-                    WakeUpStat(
-                        value = "+1",
-                        label = "Streak"
-                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Show session times if available
+                    if (sessionStartTime != null && sessionEndTime != null) {
+                        Text(
+                            text = "You locked in from",
+                            fontFamily = InterRegular,
+                            fontSize = 14.sp,
+                            color = TextMuted
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text(
+                            text = "$sessionStartTime → $sessionEndTime",
+                            fontFamily = OrbitronBold,
+                            fontSize = 18.sp,
+                            color = TextPrimary
+                        )
+
+                        if (sessionDuration != null) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "($sessionDuration)",
+                                fontFamily = InterRegular,
+                                fontSize = 13.sp,
+                                color = TextMuted
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = "You stayed locked in and crushed it.",
+                            fontFamily = InterRegular,
+                            fontSize = 14.sp,
+                            color = TextMuted,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(40.dp))
 
-            // ── Exit Button ───────────────────────────────────────────────────
+            // Continue to dashboard
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -170,44 +162,30 @@ fun WakeUpScreen(
                     )
                     .clickable {
                         navController.navigate(ROUTES.DASHBOARD) {
-                            popUpTo(ROUTES.DASHBOARD) { inclusive = true }
+                            popUpTo(ROUTES.WAKE_UP) { inclusive = true }
                         }
                     },
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "BACK TO DASHBOARD",
-                    fontFamily = OrbitronBold,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    letterSpacing = 2.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "GO TO DASHBOARD",
+                        fontFamily = OrbitronBold,
+                        fontSize = 16.sp,
+                        color = Color.White,
+                        letterSpacing = 2.sp
+                    )
+                    Icon(
+                        imageVector = Icons.Default.ArrowForward,
+                        contentDescription = "Go",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
-    }
-}
-
-@Composable
-private fun WakeUpStat(
-    value: String,
-    label: String,
-    valueColor: Color = Color(0xFFA855F7)
-) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            fontFamily = OrbitronBold,
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            color = valueColor
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = label,
-            fontFamily = InterRegular,
-            fontSize = 12.sp,
-            color = TextMuted
-        )
     }
 }

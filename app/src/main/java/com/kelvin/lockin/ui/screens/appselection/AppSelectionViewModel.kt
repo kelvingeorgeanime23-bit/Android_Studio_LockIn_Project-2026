@@ -77,7 +77,7 @@ class AppSelectionViewModel(application: Application) : AndroidViewModel(applica
             if (app.isSelected) {
                 repository.unblockApp(packageName)
             } else {
-                repository.blockApp(packageName)
+                repository.blockApp(app.appName, packageName)  // Pass BOTH
             }
         }
     }
