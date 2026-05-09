@@ -1,5 +1,9 @@
 package com.kelvin.lockin.ui.screens.dashboard
 
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.Intent
+import android.provider.Settings
+import android.view.accessibility.AccessibilityManager
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,6 +19,7 @@ import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,7 +41,6 @@ import com.kelvin.lockin.ui.navigation.ROUTES
 import com.kelvin.lockin.ui.theme.InterRegular
 import com.kelvin.lockin.ui.theme.OrbitronBold
 
-// ── LockIn brand colours ─────────────────────────────────────────────────────
 private val BgColor       = Color(0xFF0F0F1A)
 private val PurplePrimary = Color(0xFF7C3AED)
 private val PurpleLight   = Color(0xFFA855F7)
@@ -47,6 +51,14 @@ private val TextPrimary   = Color(0xFFF1F0FF)
 private val TextMuted     = Color(0xFF9B8EC4)
 private val TextGreen     = Color(0xFF34D399)
 private val TextOrange    = Color(0xFFFB923C)
+private val TextRed       = Color(0xFFEF4444)
+
+// Helper to check if accessibility service is enabled
+fun isAccessibilityServiceEnabled(context: android.content.Context): Boolean {
+    val am = context.getSystemService(android.content.Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+    val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+    return enabledServices.any { it.id.contains("com.kelvin.lockin") }
+}
 
 @Composable
 fun DashboardScreen(
@@ -58,13 +70,27 @@ fun DashboardScreen(
     val weeklyStats by viewModel.weeklyStats.collectAsState()
     val context = LocalContext.current
 
+    // Check accessibility service status every time screen resumes
+    var isAccessibilityEnabled by remember { mutableStateOf(false) }
+
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                isAccessibilityEnabled = isAccessibilityServiceEnabled(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(BgColor)
     ) {
 
-        // ── Glow blob top-right ──────────────────────────────────────────────
         Box(
             modifier = Modifier
                 .size(300.dp)
@@ -74,7 +100,6 @@ fun DashboardScreen(
                 .background(PurplePrimary.copy(alpha = 0.25f), CircleShape)
         )
 
-        // ── Glow blob bottom-left ────────────────────────────────────────────
         Box(
             modifier = Modifier
                 .size(250.dp)
@@ -94,7 +119,7 @@ fun DashboardScreen(
 
             Spacer(modifier = Modifier.height(48.dp))
 
-            // ── Top Bar ───────────────────────────────────────────────────────
+            // Top Bar
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -128,9 +153,62 @@ fun DashboardScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // ── Focus Status Card ─────────────────────────────────────────────
+            // Accessibility Warning Card (only shows if service is OFF)
+            if (!isAccessibilityEnabled) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(TextRed.copy(alpha = 0.1f))
+                        .border(
+                            width = 1.dp,
+                            brush = Brush.linearGradient(
+                                listOf(TextRed.copy(alpha = 0.5f), Color.Transparent)
+                            ),
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                        .clickable {
+                            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                            context.startActivity(intent)
+                        }
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = "Warning",
+                            tint = TextRed,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Column {
+                            Text(
+                                text = "Blocking is not active",
+                                fontFamily = OrbitronBold,
+                                fontSize = 13.sp,
+                                color = TextRed
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Tap here to enable LockIn in Accessibility Settings",
+                                fontFamily = InterRegular,
+                                fontSize = 12.sp,
+                                color = TextMuted
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Focus Status Card
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -206,7 +284,7 @@ fun DashboardScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // ── Stats Row ─────────────────────────────────────────────────────
+            // Stats Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -233,7 +311,7 @@ fun DashboardScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // ── Start / End Focus Session Button ──────────────────────────────
+            // Start / End Focus Session Button
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -241,13 +319,9 @@ fun DashboardScreen(
                     .clip(RoundedCornerShape(16.dp))
                     .background(
                         if (isLockedIn)
-                            Brush.linearGradient(
-                                listOf(Color(0xFFDC2626), Color(0xFFEF4444))
-                            )
+                            Brush.linearGradient(listOf(Color(0xFFDC2626), Color(0xFFEF4444)))
                         else
-                            Brush.linearGradient(
-                                listOf(PurplePrimary, PurpleLight)
-                            )
+                            Brush.linearGradient(listOf(PurplePrimary, PurpleLight))
                     )
                     .clickable {
                         if (isLockedIn) viewModel.endFocusSession()
@@ -267,7 +341,7 @@ fun DashboardScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // ── Action Buttons Row 1 ──────────────────────────────────────────
+            // Action Buttons Row 1
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -288,7 +362,7 @@ fun DashboardScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // ── Action Buttons Row 2 ──────────────────────────────────────────
+            // Action Buttons Row 2
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -316,7 +390,6 @@ fun DashboardScreen(
     }
 }
 
-// ── Stat Card ────────────────────────────────────────────────────────────────
 @Composable
 private fun StatCard(
     modifier: Modifier = Modifier,
@@ -357,7 +430,6 @@ private fun StatCard(
     }
 }
 
-// ── Action Button ────────────────────────────────────────────────────────────
 @Composable
 private fun ActionButton(
     modifier: Modifier = Modifier,

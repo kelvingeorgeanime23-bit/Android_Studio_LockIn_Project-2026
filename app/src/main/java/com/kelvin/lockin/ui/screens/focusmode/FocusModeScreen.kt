@@ -1,5 +1,6 @@
 package com.kelvin.lockin.ui.screens.focusmode
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -67,15 +68,14 @@ fun FocusModeScreen(
 
     val context = LocalContext.current
 
-    // Load blocked app names (not package names)
+    // Load blocked app names
     var blockedAppNames by remember { mutableStateOf<List<String>>(emptyList()) }
     LaunchedEffect(Unit) {
         val repo = BlockedAppsRepository(context)
         blockedAppNames = repo.blockedAppNames.first()
     }
-    // Navigate to Wake Up when finished
-    // In FocusModeScreen.kt, replace the FINISHED LaunchedEffect:
 
+    // Navigate to Wake Up when finished
     LaunchedEffect(focusState) {
         if (focusState == FocusState.FINISHED) {
             val start = sessionStartTime ?: "--:--"
@@ -88,6 +88,11 @@ fun FocusModeScreen(
                 popUpTo(ROUTES.FOCUS_MODE) { inclusive = true }
             }
         }
+    }
+
+    // Block back button during focus session
+    BackHandler(enabled = focusState == FocusState.RUNNING) {
+        // Do nothing — back button is disabled
     }
 
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -133,14 +138,17 @@ fun FocusModeScreen(
             ) {
                 IconButton(
                     onClick = {
-                        viewModel.endSession()
-                        navController.popBackStack()
-                    }
+                        if (focusState != FocusState.RUNNING) {
+                            viewModel.endSession()
+                            navController.popBackStack()
+                        }
+                    },
+                    enabled = focusState != FocusState.RUNNING
                 ) {
                     Icon(
                         imageVector = Icons.Default.ArrowBack,
                         contentDescription = "Back",
-                        tint = TextPrimary
+                        tint = if (focusState == FocusState.RUNNING) TextMuted else TextPrimary
                     )
                 }
 
@@ -536,37 +544,31 @@ fun FocusModeScreen(
                     .clip(RoundedCornerShape(16.dp))
                     .background(
                         when (focusState) {
-                            FocusState.RUNNING -> Brush.linearGradient(listOf(Color(0xFFDC2626), Color(0xFFEF4444)))
+                            FocusState.RUNNING -> Brush.linearGradient(
+                                listOf(Color(0xFF1a1a2e), Color(0xFF16213e))
+                            )
                             FocusState.PREPARING -> Brush.linearGradient(listOf(TextOrange, Color(0xFFFB923C)))
                             else -> Brush.linearGradient(listOf(PurplePrimary, PurpleLight))
                         }
                     )
-                    .clickable {
+                    .clickable(enabled = focusState != FocusState.RUNNING) {
                         when (focusState) {
-                            FocusState.RUNNING -> {
-                                viewModel.endSession()
-                                navController.popBackStack()
-                            }
-                            FocusState.PREPARING -> {
-                                viewModel.endSession()
-                            }
-                            else -> {
-                                viewModel.startPreparation()
-                            }
+                            FocusState.PREPARING -> viewModel.endSession()
+                            else -> viewModel.startPreparation()
                         }
                     },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = when (focusState) {
-                        FocusState.RUNNING -> "End Session"
+                        FocusState.RUNNING -> "LOCKED IN — NO EXIT"
                         FocusState.PREPARING -> "Cancel"
                         else -> "Start Session"
                     },
                     fontFamily = OrbitronBold,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = if (focusState == FocusState.RUNNING) TextMuted else Color.White,
                     letterSpacing = 2.sp
                 )
             }

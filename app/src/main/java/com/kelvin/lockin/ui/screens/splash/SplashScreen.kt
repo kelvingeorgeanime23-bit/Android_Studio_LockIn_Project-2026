@@ -30,16 +30,17 @@ import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.animateLottieCompositionAsState
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.kelvin.lockin.R
+import com.kelvin.lockin.data.repository.SupabaseClient
 import com.kelvin.lockin.ui.navigation.ROUTES
 import com.kelvin.lockin.ui.theme.BackgroundDark
 import com.kelvin.lockin.ui.theme.OrbitronFont
 import com.kelvin.lockin.ui.theme.PurpleLight
+import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.delay
 
 @Composable
 fun SplashScreen(navController: NavController) {
 
-    // FADE IN ANIMATION STATE
     var visible by remember { mutableStateOf(false) }
     val alpha by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
@@ -47,7 +48,6 @@ fun SplashScreen(navController: NavController) {
         label = "splash_fade"
     )
 
-    // LOTTIE ANIMATION
     val composition by rememberLottieComposition(
         LottieCompositionSpec.RawRes(R.raw.lockin_splash_animation)
     )
@@ -56,26 +56,41 @@ fun SplashScreen(navController: NavController) {
         iterations = LottieConstants.IterateForever
     )
 
-    // NAVIGATION STATE
     var canNavigate by remember { mutableStateOf(false) }
+    var isLoggedIn by remember { mutableStateOf<Boolean?>(null) }
 
-    // LAUNCH EFFECT: fade in then navigate
+    // Check Supabase session
     LaunchedEffect(Unit) {
         visible = true
         delay(3000L)
+
+        try {
+            // Wait for Supabase to restore session from storage
+            SupabaseClient.client.auth.awaitInitialization()
+            val session = SupabaseClient.client.auth.currentSessionOrNull()
+            isLoggedIn = session != null
+        } catch (e: Exception) {
+            isLoggedIn = false
+        }
+
         canNavigate = true
     }
 
-    // NAVIGATE WHEN READY (composition loaded + minimum time passed)
-    LaunchedEffect(canNavigate, composition) {
-        if (canNavigate && composition != null) {
-            navController.navigate(ROUTES.ONBOARDING) {
-                popUpTo(ROUTES.SPLASH) { inclusive = true }
+    // Navigate when ready
+    LaunchedEffect(canNavigate, isLoggedIn, composition) {
+        if (canNavigate && isLoggedIn != null && composition != null) {
+            if (isLoggedIn == true) {
+                navController.navigate(ROUTES.DASHBOARD) {
+                    popUpTo(ROUTES.SPLASH) { inclusive = true }
+                }
+            } else {
+                navController.navigate(ROUTES.ONBOARDING) {
+                    popUpTo(ROUTES.SPLASH) { inclusive = true }
+                }
             }
         }
     }
 
-    // UI
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -85,7 +100,6 @@ fun SplashScreen(navController: NavController) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // LOTTIE ANIMATION
             if (composition != null) {
                 LottieAnimation(
                     composition = composition,
@@ -96,7 +110,6 @@ fun SplashScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // APP NAME
             Text(
                 text = "LOCK IN",
                 fontFamily = OrbitronFont,
@@ -108,7 +121,6 @@ fun SplashScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // TAGLINE
             Text(
                 text = "Focus. Discipline. Control.",
                 style = MaterialTheme.typography.bodyMedium,

@@ -1,12 +1,19 @@
 package com.kelvin.lockin.ui.screens.focusmode
 
 import android.app.Application
-import android.os.PowerManager
 import android.content.Context
+import android.content.Intent
+import android.os.PowerManager
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.kelvin.lockin.data.repository.ScheduleRepository
 import com.kelvin.lockin.data.repository.SavedSchedule
+import com.kelvin.lockin.data.repository.sessionDataStore
+import com.kelvin.lockin.services.LockInAccessibilityService
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -24,12 +31,18 @@ enum class FocusState {
 class FocusModeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val scheduleRepository = ScheduleRepository(application)
+    private val appContext = application.applicationContext
+    private val dataStore = application.sessionDataStore
 
-    // Wake Lock to keep screen on during focus
     private val powerManager = application.getSystemService(Context.POWER_SERVICE) as PowerManager
     private var wakeLock: PowerManager.WakeLock? = null
 
-    // Read saved schedule
+    // DataStore keys
+    private val KEY_IS_RUNNING = booleanPreferencesKey("is_running")
+    private val KEY_REMAINING = longPreferencesKey("remaining_seconds")
+    private val KEY_START_TIME = stringPreferencesKey("start_time")
+    private val KEY_END_TIME = stringPreferencesKey("end_time")
+
     val savedSchedule: StateFlow<SavedSchedule> = scheduleRepository.schedule
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SavedSchedule())
 
@@ -57,16 +70,69 @@ class FocusModeViewModel(application: Application) : AndroidViewModel(applicatio
     private var timerJob: Job? = null
     private val timeFormatter = DateTimeFormatter.ofPattern("hh:mm a")
 
-    fun onHoursChanged(hours: Int) {
-        if (_focusState.value == FocusState.IDLE) {
-            _selectedHours.value = hours
+    init {
+        android.util.Log.d("LOCKIN_VIEWMODEL", "=== ViewModel init START ===")
+        viewModelScope.launch {
+            android.util.Log.d("LOCKIN_VIEWMODEL", "Reading DataStore...")
+            val prefs = dataStore.data.first()
+            val isRunning = prefs[KEY_IS_RUNNING] ?: false
+            val remaining = prefs[KEY_REMAINING] ?: 0L
+            val startTime = prefs[KEY_START_TIME]
+            val endTime = prefs[KEY_END_TIME]
+
+            android.util.Log.d("LOCKIN_VIEWMODEL", "DataStore values: isRunning=$isRunning, remaining=$remaining, startTime=$startTime, endTime=$endTime")
+
+            if (!isRunning || remaining <= 0 || endTime == null) {
+                android.util.Log.d("LOCKIN_VIEWMODEL", "No valid session found — clearing DataStore")
+                dataStore.edit { it.clear() }
+                return@launch
+            }
+
+            try {
+                val endLocalTime = LocalTime.parse(endTime, timeFormatter)
+                val now = LocalTime.now()
+                android.util.Log.d("LOCKIN_VIEWMODEL", "Parsed times: now=$now, end=$endLocalTime")
+
+                val sessionExpired = now.isAfter(endLocalTime)
+                android.util.Log.d("LOCKIN_VIEWMODEL", "Session expired: $sessionExpired")
+
+                if (sessionExpired) {
+                    android.util.Log.d("LOCKIN_VIEWMODEL", "Session expired — clearing")
+                    dataStore.edit { it.clear() }
+                    return@launch
+                }
+
+                val secondsUntilEnd = java.time.Duration.between(now, endLocalTime).seconds
+                android.util.Log.d("LOCKIN_VIEWMODEL", "Seconds until end: $secondsUntilEnd")
+
+                if (secondsUntilEnd > 0) {
+                    android.util.Log.d("LOCKIN_VIEWMODEL", ">>> RESTORING SESSION <<<")
+                    _sessionStartTime.value = startTime
+                    _sessionEndTime.value = endTime
+                    _remainingSeconds.value = secondsUntilEnd
+                    _focusState.value = FocusState.RUNNING
+                    acquireWakeLock()
+                    sendBlockingBroadcast(true)
+                    resumeTimer()
+                } else {
+                    android.util.Log.d("LOCKIN_VIEWMODEL", "No seconds remaining — clearing")
+                    dataStore.edit { it.clear() }
+                }
+
+            } catch (e: Exception) {
+                android.util.Log.e("LOCKIN_VIEWMODEL", "Error parsing session", e)
+                dataStore.edit { it.clear() }
+            }
         }
+        android.util.Log.d("LOCKIN_VIEWMODEL", "=== ViewModel init END ===")
+    }
+
+    fun onHoursChanged(hours: Int) {
+        if (_focusState.value == FocusState.IDLE) _selectedHours.value = hours
     }
 
     fun onMinutesChanged(minutes: Int) {
-        if (_focusState.value == FocusState.IDLE) {
-            _selectedMinutes.value = minutes
-        }
+        if (_focusState.value == FocusState.IDLE) _selectedMinutes.value = minutes
     }
 
     fun startPreparation() {
@@ -94,27 +160,62 @@ class FocusModeViewModel(application: Application) : AndroidViewModel(applicatio
         _remainingSeconds.value = totalSeconds
         _focusState.value = FocusState.RUNNING
 
-        // Acquire wake lock to keep screen on
-        acquireWakeLock()
+        viewModelScope.launch {
+            dataStore.edit { prefs ->
+                prefs[KEY_IS_RUNNING] = true
+                prefs[KEY_REMAINING] = totalSeconds
+                prefs[KEY_START_TIME] = now.format(timeFormatter)
+                prefs[KEY_END_TIME] = endTime.format(timeFormatter)
+            }
+        }
 
+        acquireWakeLock()
+        sendBlockingBroadcast(true)
+        resumeTimer()
+    }
+
+    private fun resumeTimer() {
+        timerJob?.cancel()
         timerJob = viewModelScope.launch {
             while (_remainingSeconds.value > 0) {
                 delay(1000L)
                 _remainingSeconds.value -= 1
+
+                if (_remainingSeconds.value % 5 == 0L) {
+                    dataStore.edit { prefs ->
+                        prefs[KEY_REMAINING] = _remainingSeconds.value
+                    }
+                }
             }
             _focusState.value = FocusState.FINISHED
             releaseWakeLock()
+            sendBlockingBroadcast(false)
+            dataStore.edit { it.clear() }
         }
     }
 
     fun endSession() {
         timerJob?.cancel()
         releaseWakeLock()
+        sendBlockingBroadcast(false)
         _focusState.value = FocusState.IDLE
         _remainingSeconds.value = 0L
         _preparationSeconds.value = 10
         _sessionStartTime.value = null
         _sessionEndTime.value = null
+        viewModelScope.launch { dataStore.edit { it.clear() } }
+    }
+
+    private fun sendBlockingBroadcast(start: Boolean) {
+        val action = if (start)
+            LockInAccessibilityService.ACTION_START_BLOCKING
+        else
+            LockInAccessibilityService.ACTION_STOP_BLOCKING
+
+        val intent = Intent(action).apply {
+            setPackage(appContext.packageName)
+        }
+        appContext.sendBroadcast(intent)
     }
 
     private fun acquireWakeLock() {
@@ -122,7 +223,7 @@ class FocusModeViewModel(application: Application) : AndroidViewModel(applicatio
             PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
             "LockIn::FocusWakeLock"
         )
-        wakeLock?.acquire(10 * 60 * 60 * 1000L) // 10 hours max
+        wakeLock?.acquire(10 * 60 * 60 * 1000L)
     }
 
     private fun releaseWakeLock() {
@@ -136,11 +237,8 @@ class FocusModeViewModel(application: Application) : AndroidViewModel(applicatio
         val h = seconds / 3600
         val m = (seconds % 3600) / 60
         val s = seconds % 60
-        return if (h > 0) {
-            "%02d:%02d:%02d".format(h, m, s)
-        } else {
-            "%02d:%02d".format(m, s)
-        }
+        return if (h > 0) "%02d:%02d:%02d".format(h, m, s)
+        else "%02d:%02d".format(m, s)
     }
 
     override fun onCleared() {
