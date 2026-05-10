@@ -70,17 +70,20 @@ class FocusModeViewModel(application: Application) : AndroidViewModel(applicatio
     val sessionEndTime: StateFlow<String?> = _sessionEndTime.asStateFlow()
 
     private var timerJob: Job? = null
+    private var initJob: Job? = null
     private val timeFormatter = DateTimeFormatter.ofPattern("hh:mm a")
 
     init {
-        viewModelScope.launch {
+        initJob = viewModelScope.launch {
+            delay(500L)
+
             val prefs = dataStore.data.first()
             val isRunning = prefs[KEY_IS_RUNNING] ?: false
             val remaining = prefs[KEY_REMAINING] ?: 0L
             val startTime = prefs[KEY_START_TIME]
             val endTime = prefs[KEY_END_TIME]
 
-            if (!isRunning || remaining <= 0 || endTime == null) {
+            if (!isRunning || remaining <= 0 || endTime == null || remaining > 10800) {
                 dataStore.edit { it.clear() }
                 _isRestoring.value = false
                 return@launch
@@ -89,9 +92,8 @@ class FocusModeViewModel(application: Application) : AndroidViewModel(applicatio
             try {
                 val endLocalTime = LocalTime.parse(endTime, timeFormatter)
                 val now = LocalTime.now()
-                val sessionExpired = now.isAfter(endLocalTime)
 
-                if (sessionExpired) {
+                if (now.isAfter(endLocalTime)) {
                     dataStore.edit { it.clear() }
                     _isRestoring.value = false
                     return@launch
@@ -117,6 +119,22 @@ class FocusModeViewModel(application: Application) : AndroidViewModel(applicatio
 
             _isRestoring.value = false
         }
+    }
+
+    fun restoreFromAlarm(startTime: String, endTime: String, remainingSeconds: Long) {
+        // Cancel init coroutine so it doesn't overwrite our state
+        initJob?.cancel()
+        timerJob?.cancel()
+
+        _sessionStartTime.value = startTime
+        _sessionEndTime.value = endTime
+        _remainingSeconds.value = remainingSeconds
+        _focusState.value = FocusState.RUNNING
+        _isRestoring.value = false
+
+        acquireWakeLock()
+        sendBlockingBroadcast(true)
+        resumeTimer()
     }
 
     fun onHoursChanged(hours: Int) {

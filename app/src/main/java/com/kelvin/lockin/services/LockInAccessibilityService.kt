@@ -20,14 +20,17 @@ class LockInAccessibilityService : AccessibilityService() {
     }
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     @Volatile
     private var blockedPackages: Set<String> = emptySet()
+
     @Volatile
     private var isBlockingActive = false
 
+    private val handler = Handler(Looper.getMainLooper())
+
     private val blockingReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            android.util.Log.d("LOCKIN_DEBUG", "Broadcast received: ${intent?.action}")
             when (intent?.action) {
                 ACTION_START_BLOCKING -> {
                     isBlockingActive = true
@@ -43,7 +46,9 @@ class LockInAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        android.util.Log.d("LOCKIN_DEBUG", "Service connected")
+        isBlockingActive = false
+        blockedPackages = emptySet()
+
         val filter = IntentFilter().apply {
             addAction(ACTION_START_BLOCKING)
             addAction(ACTION_STOP_BLOCKING)
@@ -55,10 +60,20 @@ class LockInAccessibilityService : AccessibilityService() {
         serviceScope.launch {
             val repo = BlockedAppsRepository(applicationContext)
             blockedPackages = repo.blockedPackages.first()
-            android.util.Log.d("LOCKIN_DEBUG", "Blocked apps loaded: $blockedPackages")
         }
     }
 
+    private fun bounceToFocusScreen() {
+        handler.post {
+            val intent = Intent(applicationContext, com.kelvin.lockin.MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("navigate_to", "focus_mode")
+            }
+            startActivity(intent)
+        }
+    }
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         if (!isBlockingActive) return
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
@@ -66,18 +81,9 @@ class LockInAccessibilityService : AccessibilityService() {
         val packageName = event.packageName?.toString() ?: return
         if (packageName == "com.kelvin.lockin") return
         if (packageName == "com.android.systemui") return
-
         if (!blockedPackages.contains(packageName)) return
 
-        android.util.Log.d("LOCKIN_DEBUG", "BLOCKING $packageName")
-
-        Handler(Looper.getMainLooper()).post {
-            val intent = Intent(applicationContext, com.kelvin.lockin.MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                putExtra("navigate_to", "focus_mode")
-            }
-            startActivity(intent)
-        }
+        bounceToFocusScreen()
     }
 
     override fun onInterrupt() {}

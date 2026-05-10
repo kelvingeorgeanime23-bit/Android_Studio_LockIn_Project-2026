@@ -73,16 +73,16 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                 }
             }
 
+            // Calculate duration directly from schedule times
+            var durationMinutes = (schedule.endHour * 60 + schedule.endMinute) -
+                    (schedule.startHour * 60 + schedule.startMinute)
+
+            // If end time is before start time, session crosses midnight
+            if (durationMinutes <= 0) durationMinutes += 24 * 60
+
+            // Set end alarm by adding duration to startCal, not by setting hour/minute independently
             val endCal = startCal.clone() as Calendar
-            endCal.set(Calendar.HOUR_OF_DAY, schedule.endHour)
-            endCal.set(Calendar.MINUTE, schedule.endMinute)
-
-            if (schedule.endHour < schedule.startHour ||
-                (schedule.endHour == schedule.startHour && schedule.endMinute <= schedule.startMinute)) {
-                endCal.add(Calendar.DAY_OF_YEAR, 1)
-            }
-
-            val durationMinutes = ((endCal.timeInMillis - startCal.timeInMillis) / 60000).toInt()
+            endCal.add(Calendar.MINUTE, durationMinutes)
 
             val startIntent = Intent(context, ScheduleAlarmReceiver::class.java).apply {
                 action = ACTION_SCHEDULE_START
@@ -111,7 +111,7 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                 alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, endCal.timeInMillis, endPending)
             }
 
-            Log.d(TAG, "Alarms set: start=${startCal.time}, end=${endCal.time}")
+            Log.d(TAG, "Alarms set: start=${startCal.time}, end=${endCal.time}, duration=$durationMinutes mins")
         }
 
         fun cancelAlarms(context: Context) {
@@ -138,27 +138,36 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
             ACTION_SCHEDULE_START -> {
                 val durationMinutes = intent.getIntExtra(EXTRA_DURATION_MINUTES, 60)
 
-                val startBlockIntent = Intent(LockInAccessibilityService.ACTION_START_BLOCKING).apply {
-                    setPackage(context.packageName)
-                }
-                context.sendBroadcast(startBlockIntent)
-
                 CoroutineScope(Dispatchers.IO).launch {
                     val now = LocalTime.now()
                     val endTime = now.plusMinutes(durationMinutes.toLong())
+                    val startTimeStr = now.format(timeFormatter)
+                    val endTimeStr = endTime.format(timeFormatter)
+                    val remainingSeconds = durationMinutes * 60L
+
                     context.sessionDataStore.edit { prefs ->
                         prefs[booleanPreferencesKey("is_running")] = true
-                        prefs[longPreferencesKey("remaining_seconds")] = durationMinutes * 60L
-                        prefs[stringPreferencesKey("start_time")] = now.format(timeFormatter)
-                        prefs[stringPreferencesKey("end_time")] = endTime.format(timeFormatter)
+                        prefs[longPreferencesKey("remaining_seconds")] = remainingSeconds
+                        prefs[stringPreferencesKey("start_time")] = startTimeStr
+                        prefs[stringPreferencesKey("end_time")] = endTimeStr
                     }
-                }
 
-                val bounceIntent = Intent(context, com.kelvin.lockin.MainActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                    putExtra("navigate_to", "focus_mode")
+                    val startBlockIntent = Intent(LockInAccessibilityService.ACTION_START_BLOCKING).apply {
+                        setPackage(context.packageName)
+                    }
+                    context.sendBroadcast(startBlockIntent)
+
+                    val bounceIntent = Intent(context, com.kelvin.lockin.MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                                Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                                Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        putExtra("navigate_to", "focus_mode")
+                        putExtra("session_start_time", startTimeStr)
+                        putExtra("session_end_time", endTimeStr)
+                        putExtra("session_remaining", remainingSeconds)
+                    }
+                    context.startActivity(bounceIntent)
                 }
-                context.startActivity(bounceIntent)
 
                 showNotification(context, "Focus Session Started", "Scheduled blocking is now active")
 
@@ -168,22 +177,26 @@ class ScheduleAlarmReceiver : BroadcastReceiver() {
                     if (schedule.isActive) scheduleAlarms(context, schedule)
                 }
             }
-
             ACTION_SCHEDULE_END -> {
-                val stopBlockIntent = Intent(LockInAccessibilityService.ACTION_STOP_BLOCKING).apply {
-                    setPackage(context.packageName)
-                }
-                context.sendBroadcast(stopBlockIntent)
-
                 CoroutineScope(Dispatchers.IO).launch {
+                    // Clear DataStore first
                     context.sessionDataStore.edit { it.clear() }
-                }
 
-                val wakeUpIntent = Intent(context, com.kelvin.lockin.MainActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                    putExtra("navigate_to", "wake_up")
+                    // Then stop blocking
+                    val stopBlockIntent = Intent(LockInAccessibilityService.ACTION_STOP_BLOCKING).apply {
+                        setPackage(context.packageName)
+                    }
+                    context.sendBroadcast(stopBlockIntent)
+
+                    // Then open wake up screen
+                    val wakeUpIntent = Intent(context, com.kelvin.lockin.MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                                Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                                Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        putExtra("navigate_to", "wake_up")
+                    }
+                    context.startActivity(wakeUpIntent)
                 }
-                context.startActivity(wakeUpIntent)
 
                 showNotification(context, "Focus Session Ended", "Apps are unblocked. Great work!")
             }

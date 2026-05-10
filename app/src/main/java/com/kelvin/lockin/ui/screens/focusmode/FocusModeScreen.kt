@@ -62,8 +62,33 @@ fun FocusModeScreen(
     val sessionStartTime by viewModel.sessionStartTime.collectAsState()
     val sessionEndTime by viewModel.sessionEndTime.collectAsState()
     val savedSchedule by viewModel.savedSchedule.collectAsState()
+    val isRestoring by viewModel.isRestoring.collectAsState()
 
     val context = LocalContext.current
+
+    if (isRestoring) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(BgColor),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator(
+                    color = PurplePrimary,
+                    modifier = Modifier.size(48.dp)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Restoring session...",
+                    fontFamily = OrbitronBold,
+                    fontSize = 14.sp,
+                    color = TextMuted
+                )
+            }
+        }
+        return
+    }
 
     var blockedAppNames by remember { mutableStateOf<List<String>>(emptyList()) }
     LaunchedEffect(Unit) {
