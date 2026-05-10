@@ -28,8 +28,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import com.kelvin.lockin.LockInApp
 import com.kelvin.lockin.data.repository.BlockedAppsRepository
 import com.kelvin.lockin.ui.navigation.ROUTES
 import com.kelvin.lockin.ui.theme.InterRegular
@@ -50,13 +50,10 @@ private val TextRed       = Color(0xFFEF4444)
 
 @Composable
 fun FocusModeScreen(
-    navController: NavHostController,
-    viewModel: FocusModeViewModel = viewModel(
-        factory = androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(
-            LocalContext.current.applicationContext as android.app.Application
-        )
-    )
+    navController: NavHostController
 ) {
+    val viewModel = (LocalContext.current.applicationContext as LockInApp).focusModeViewModel
+
     val focusState by viewModel.focusState.collectAsState()
     val selectedHours by viewModel.selectedHours.collectAsState()
     val selectedMinutes by viewModel.selectedMinutes.collectAsState()
@@ -68,20 +65,18 @@ fun FocusModeScreen(
 
     val context = LocalContext.current
 
-    // Load blocked app names
     var blockedAppNames by remember { mutableStateOf<List<String>>(emptyList()) }
     LaunchedEffect(Unit) {
         val repo = BlockedAppsRepository(context)
         blockedAppNames = repo.blockedAppNames.first()
     }
 
-    // Navigate to Wake Up when finished
     LaunchedEffect(focusState) {
         if (focusState == FocusState.FINISHED) {
             val start = sessionStartTime ?: "--:--"
             val end = sessionEndTime ?: "--:--"
             val duration = "${selectedHours}h ${selectedMinutes}m"
-
+            viewModel.resetSession()
             navController.navigate(
                 "${ROUTES.WAKE_UP}?start=$start&end=$end&duration=$duration"
             ) {
@@ -90,10 +85,7 @@ fun FocusModeScreen(
         }
     }
 
-    // Block back button during focus session
-    BackHandler(enabled = focusState == FocusState.RUNNING) {
-        // Do nothing — back button is disabled
-    }
+    BackHandler(enabled = focusState == FocusState.RUNNING) {}
 
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseScale by infiniteTransition.animateFloat(
@@ -112,7 +104,6 @@ fun FocusModeScreen(
             .background(BgColor)
     ) {
 
-        // Background glow
         Box(
             modifier = Modifier
                 .size(300.dp)
@@ -131,7 +122,6 @@ fun FocusModeScreen(
 
             Spacer(modifier = Modifier.height(48.dp))
 
-            // Top Bar
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -171,16 +161,10 @@ fun FocusModeScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Main Timer Circle
             Box(
                 modifier = Modifier
                     .size(260.dp)
-                    .scale(
-                        when (focusState) {
-                            FocusState.RUNNING -> pulseScale
-                            else -> 1f
-                        }
-                    )
+                    .scale(if (focusState == FocusState.RUNNING) pulseScale else 1f)
                     .clip(CircleShape)
                     .background(
                         when (focusState) {
@@ -291,10 +275,8 @@ fun FocusModeScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // === PREPARING: Show Scheduled Time + Blocked Apps ===
             if (focusState == FocusState.PREPARING) {
 
-                // Scheduled Time (from Schedule screen)
                 if (savedSchedule.isActive) {
                     Box(
                         modifier = Modifier
@@ -337,7 +319,6 @@ fun FocusModeScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // Session Time (this actual session)
                 if (sessionStartTime != null && sessionEndTime != null) {
                     Box(
                         modifier = Modifier
@@ -346,7 +327,9 @@ fun FocusModeScreen(
                             .background(GlassWhite)
                             .border(
                                 width = 1.dp,
-                                brush = Brush.linearGradient(listOf(GlassBorder, Color.White.copy(alpha = 0.03f))),
+                                brush = Brush.linearGradient(
+                                    listOf(GlassBorder, Color.White.copy(alpha = 0.03f))
+                                ),
                                 shape = RoundedCornerShape(12.dp)
                             )
                             .padding(12.dp)
@@ -368,7 +351,6 @@ fun FocusModeScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // Blocked Apps List
                 if (blockedAppNames.isNotEmpty()) {
                     Box(
                         modifier = Modifier
@@ -377,7 +359,9 @@ fun FocusModeScreen(
                             .background(GlassWhite)
                             .border(
                                 width = 1.dp,
-                                brush = Brush.linearGradient(listOf(GlassBorder, Color.White.copy(alpha = 0.03f))),
+                                brush = Brush.linearGradient(
+                                    listOf(GlassBorder, Color.White.copy(alpha = 0.03f))
+                                ),
                                 shape = RoundedCornerShape(16.dp)
                             )
                             .padding(16.dp)
@@ -421,10 +405,8 @@ fun FocusModeScreen(
                 }
             }
 
-            // === RUNNING: Clean timer + both times ===
             if (focusState == FocusState.RUNNING) {
 
-                // Scheduled time (from Schedule screen)
                 if (savedSchedule.isActive) {
                     Box(
                         modifier = Modifier
@@ -459,7 +441,6 @@ fun FocusModeScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                 }
 
-                // Session time (actual)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -467,7 +448,9 @@ fun FocusModeScreen(
                         .background(GlassWhite)
                         .border(
                             width = 1.dp,
-                            brush = Brush.linearGradient(listOf(GlassBorder, Color.White.copy(alpha = 0.03f))),
+                            brush = Brush.linearGradient(
+                                listOf(GlassBorder, Color.White.copy(alpha = 0.03f))
+                            ),
                             shape = RoundedCornerShape(12.dp)
                         )
                         .padding(12.dp)
@@ -500,7 +483,6 @@ fun FocusModeScreen(
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // Duration Pickers (only in IDLE)
             if (focusState == FocusState.IDLE) {
                 Text(
                     text = "Set Duration",
@@ -523,7 +505,6 @@ fun FocusModeScreen(
                         range = 0..23,
                         onValueChange = { viewModel.onHoursChanged(it) }
                     )
-
                     DurationPicker(
                         modifier = Modifier.weight(1f),
                         label = "Minutes",
@@ -536,7 +517,6 @@ fun FocusModeScreen(
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
-            // Main Action Button
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -547,7 +527,9 @@ fun FocusModeScreen(
                             FocusState.RUNNING -> Brush.linearGradient(
                                 listOf(Color(0xFF1a1a2e), Color(0xFF16213e))
                             )
-                            FocusState.PREPARING -> Brush.linearGradient(listOf(TextOrange, Color(0xFFFB923C)))
+                            FocusState.PREPARING -> Brush.linearGradient(
+                                listOf(TextOrange, Color(0xFFFB923C))
+                            )
                             else -> Brush.linearGradient(listOf(PurplePrimary, PurpleLight))
                         }
                     )

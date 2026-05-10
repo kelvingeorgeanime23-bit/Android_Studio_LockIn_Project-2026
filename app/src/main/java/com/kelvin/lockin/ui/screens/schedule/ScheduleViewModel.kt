@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.kelvin.lockin.data.repository.ScheduleRepository
+import com.kelvin.lockin.data.repository.SavedSchedule
+import com.kelvin.lockin.services.ScheduleAlarmReceiver
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -24,7 +26,6 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
     val scheduleState: StateFlow<ScheduleState> = _scheduleState.asStateFlow()
 
     init {
-        // Load saved schedule
         viewModelScope.launch {
             repository.schedule.collect { saved ->
                 _scheduleState.value = ScheduleState(
@@ -45,25 +46,11 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
         _scheduleState.value = _scheduleState.value.copy(selectedDays = current)
     }
 
-    fun onStartHourChange(hour: Int) {
-        _scheduleState.value = _scheduleState.value.copy(startHour = hour)
-    }
-
-    fun onStartMinuteChange(minute: Int) {
-        _scheduleState.value = _scheduleState.value.copy(startMinute = minute)
-    }
-
-    fun onEndHourChange(hour: Int) {
-        _scheduleState.value = _scheduleState.value.copy(endHour = hour)
-    }
-
-    fun onEndMinuteChange(minute: Int) {
-        _scheduleState.value = _scheduleState.value.copy(endMinute = minute)
-    }
-
-    fun toggleSchedule(active: Boolean) {
-        _scheduleState.value = _scheduleState.value.copy(isScheduleActive = active)
-    }
+    fun onStartHourChange(hour: Int) { _scheduleState.value = _scheduleState.value.copy(startHour = hour) }
+    fun onStartMinuteChange(minute: Int) { _scheduleState.value = _scheduleState.value.copy(startMinute = minute) }
+    fun onEndHourChange(hour: Int) { _scheduleState.value = _scheduleState.value.copy(endHour = hour) }
+    fun onEndMinuteChange(minute: Int) { _scheduleState.value = _scheduleState.value.copy(endMinute = minute) }
+    fun toggleSchedule(active: Boolean) { _scheduleState.value = _scheduleState.value.copy(isScheduleActive = active) }
 
     fun saveSchedule() {
         viewModelScope.launch {
@@ -76,6 +63,21 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
                 endMinute = state.endMinute,
                 isActive = state.isScheduleActive
             )
+
+            val savedSchedule = SavedSchedule(
+                days = state.selectedDays,
+                startHour = state.startHour,
+                startMinute = state.startMinute,
+                endHour = state.endHour,
+                endMinute = state.endMinute,
+                isActive = state.isScheduleActive
+            )
+
+            if (state.isScheduleActive) {
+                ScheduleAlarmReceiver.scheduleAlarms(getApplication(), savedSchedule)
+            } else {
+                ScheduleAlarmReceiver.cancelAlarms(getApplication())
+            }
         }
     }
 }
